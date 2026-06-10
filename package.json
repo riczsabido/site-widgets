@@ -1,0 +1,26 @@
+{
+  "name": "site-widgets",
+  "version": "1.0.0",
+  "description": "Reusable, prop-driven feedback + onboarding widgets for Next.js apps. Bring your own server actions and database schema.",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "files": [
+    "src",
+    "template",
+    "README.md"
+  ],
+  "peerDependencies": {
+    "react": ">=18",
+    "react-dom": ">=18"
+  },
+  "dependencies": {
+    "html2canvas-pro": "^2.0.4"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.17",
+    "@types/react-dom": "^19.2.3",
+    "typescript": "^6.0.3"
+  }
+}

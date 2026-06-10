@@ -55,6 +55,12 @@ per-project glue the shared `site-widgets` package deliberately does not include
 
 6. **Transpile.** Add `transpilePackages: ["site-widgets"]` to `next.config.ts`.
 
+7. **(Tailwind v4) Source the package** in your `@import "tailwindcss"` CSS file,
+   or the widgets render unstyled (Tailwind skips `node_modules`):
+   ```css
+   @source "../../node_modules/site-widgets/src";
+   ```
+
 ## Triage feedback
 
 ```sql

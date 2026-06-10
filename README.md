@@ -39,7 +39,16 @@ Consumed as source (TSX), no build step. The consuming app transpiles it.
    export default { transpilePackages: ["site-widgets"] };
    ```
 
-3. Provide the per-project glue. Copy `template/` into your project and edit:
+3. **(Tailwind v4) Source the package so its classes are generated.** Tailwind
+   does not scan `node_modules` automatically, so without this the widgets
+   render unstyled/misaligned. Add to the CSS file that has `@import "tailwindcss"`
+   (path is relative to that file):
+   ```css
+   @source "../../node_modules/site-widgets/src";
+   ```
+   Also ensure the required tokens below exist in your theme.
+
+4. Provide the per-project glue. Copy `template/` into your project and edit:
    - `0001_site_widgets.sql`: replace `${SCHEMA}`, run the migration.
    - `feedback.actions.ts` + `onboarding.actions.ts`: wire your Supabase client + auth.
    - `widgets.config.ts`: your categories, severities, tasks per role.

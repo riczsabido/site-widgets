@@ -77,6 +77,14 @@ export function OnboardingWidget({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cacheKey]);
 
+  // Allow a host (e.g. a product tour) to collapse the panel to its button so it
+  // doesn't cover overlays. The button stays mounted, so a tour can still point at it.
+  useEffect(() => {
+    const collapse = () => setOpen(false);
+    window.addEventListener("site-widgets:collapse-onboarding", collapse);
+    return () => window.removeEventListener("site-widgets:collapse-onboarding", collapse);
+  }, []);
+
   function cache(m: Set<string>, a: Set<string>) {
     try {
       sessionStorage.setItem(

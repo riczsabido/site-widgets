@@ -12,8 +12,10 @@ in the project; the parts you iterate on (the widgets) stay shared.
 
 - `FeedbackWidget`: floating "Send feedback" button with category + severity +
   message + one-click page screenshot (html2canvas-pro) and a full-screen
-  red-pen annotator (Draw/Scroll toggle for tall screenshots on touch),
-  draft persistence, console-error capture, honeypot.
+  annotator with three modes - Draw (red pen), Redact (solid black box to
+  black out sensitive info before sending), and Scroll (for tall screenshots
+  on touch) - plus draft persistence, console-error capture, honeypot, and an
+  optional urgent-severity webhook handled in `template/feedback.actions.ts`.
 - `OnboardingWidget`: role-aware checklist. Manual checkboxes + auto-detected
   tasks (auto locks). Server-backed state with sessionStorage cache, progress
   bar, default-open on first visit.
@@ -67,6 +69,7 @@ Consumed as source (TSX), no build step. The consuming app transpiles it.
 | `appVersion` | `string \| null` (optional)                       | e.g. git SHA. Stored in context.       |
 | `onSubmit`   | `(p: FeedbackPayload) => Promise<FeedbackResult>` | Your server action.                    |
 | `draftKey`   | `string` (optional)                               | localStorage draft key.                |
+| `redactionDisclaimer` | `string` (optional)                      | Shown near the screenshot + in the annotator. Generic default if omitted. |
 
 ### `<OnboardingWidget>`
 

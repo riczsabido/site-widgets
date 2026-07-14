@@ -49,7 +49,16 @@ export interface FeedbackWidgetProps {
   onSubmit: (payload: FeedbackPayload) => Promise<FeedbackResult>;
   /** localStorage key for the in-progress draft. */
   draftKey?: string;
+  /**
+   * Shown near the screenshot and in the annotator: tells the submitter they're
+   * responsible for redacting sensitive info before sending. Override per
+   * deployment with your own legal wording.
+   */
+  redactionDisclaimer?: string;
 }
+
+const DEFAULT_REDACTION_DISCLAIMER =
+  "Please black out any sensitive information before sending. We are not liable for anything not redacted.";
 
 export function FeedbackWidget({
   categories,
@@ -59,6 +68,7 @@ export function FeedbackWidget({
   appVersion = null,
   onSubmit,
   draftKey = "site-fb-draft",
+  redactionDisclaimer = DEFAULT_REDACTION_DISCLAIMER,
 }: FeedbackWidgetProps) {
   const cats = categories;
   const sevs = severities;
@@ -72,7 +82,7 @@ export function FeedbackWidget({
   const [shot, setShot] = useState<string | null>(null); // original capture
   const [annotated, setAnnotated] = useState<string | null>(null); // with drawing
   const [annotating, setAnnotating] = useState(false); // full-screen overlay open
-  const [drawMode, setDrawMode] = useState(true); // draw vs scroll (touch)
+  const [mode, setMode] = useState<"draw" | "redact" | "scroll">("draw");
   const [capturing, setCapturing] = useState(false);
   const [sending, setSending] = useState(false);
   const [done, setDone] = useState(false);
@@ -80,6 +90,8 @@ export function FeedbackWidget({
 
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const drawing = useRef(false);
+  const redactSnapshot = useRef<ImageData | null>(null);
+  const redactStart = useRef<{ x: number; y: number } | null>(null);
 
   // Install error capture once.
   useEffect(() => {
@@ -166,7 +178,7 @@ export function FeedbackWidget({
     const coarse =
       typeof window !== "undefined" &&
       window.matchMedia?.("(pointer: coarse)").matches;
-    setDrawMode(!coarse);
+    setMode(coarse ? "scroll" : "draw");
     setAnnotating(true);
   }
 
@@ -182,7 +194,7 @@ export function FeedbackWidget({
     setAnnotating(false);
   }
 
-  // Freehand red annotation on the canvas.
+  // Freehand red annotation, or a solid black redaction box, on the canvas.
   function canvasPoint(e: React.PointerEvent<HTMLCanvasElement>) {
     const canvas = canvasRef.current!;
     const rect = canvas.getBoundingClientRect();
@@ -192,27 +204,76 @@ export function FeedbackWidget({
     };
   }
   function onPointerDown(e: React.PointerEvent<HTMLCanvasElement>) {
-    if (!drawMode) return; // scroll mode: let the browser pan
-    const ctx = canvasRef.current?.getContext("2d");
-    if (!ctx) return;
-    drawing.current = true;
-    canvasRef.current!.setPointerCapture(e.pointerId);
+    if (mode === "scroll") return; // let the browser pan
+    const canvas = canvasRef.current;
+    const ctx = canvas?.getContext("2d");
+    if (!canvas || !ctx) return;
+    canvas.setPointerCapture(e.pointerId);
     const p = canvasPoint(e);
+    if (mode === "redact") {
+      redactSnapshot.current = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      redactStart.current = p;
+      return;
+    }
+    drawing.current = true;
     ctx.strokeStyle = "#e11d48";
-    ctx.lineWidth = Math.max(3, canvasRef.current!.width / 250);
+    ctx.lineWidth = Math.max(3, canvas.width / 250);
     ctx.lineCap = "round";
     ctx.beginPath();
     ctx.moveTo(p.x, p.y);
   }
   function onPointerMove(e: React.PointerEvent<HTMLCanvasElement>) {
-    if (!drawMode || !drawing.current) return;
+    if (mode === "scroll") return;
     const ctx = canvasRef.current?.getContext("2d");
     if (!ctx) return;
+    if (mode === "redact") {
+      const snapshot = redactSnapshot.current;
+      const start = redactStart.current;
+      if (!snapshot || !start) return;
+      const p = canvasPoint(e);
+      ctx.putImageData(snapshot, 0, 0);
+      const x = Math.min(start.x, p.x);
+      const y = Math.min(start.y, p.y);
+      const w = Math.abs(p.x - start.x);
+      const h = Math.abs(p.y - start.y);
+      ctx.save();
+      ctx.setLineDash([6, 4]);
+      ctx.strokeStyle = "#000";
+      ctx.fillStyle = "rgba(0, 0, 0, 0.35)";
+      ctx.fillRect(x, y, w, h);
+      ctx.strokeRect(x, y, w, h);
+      ctx.restore();
+      return;
+    }
+    if (!drawing.current) return;
     const p = canvasPoint(e);
     ctx.lineTo(p.x, p.y);
     ctx.stroke();
   }
-  function onPointerUp() {
+  function onPointerUp(e: React.PointerEvent<HTMLCanvasElement>) {
+    if (mode === "redact") {
+      const canvas = canvasRef.current;
+      const ctx = canvas?.getContext("2d");
+      const snapshot = redactSnapshot.current;
+      const start = redactStart.current;
+      if (canvas && ctx && snapshot && start) {
+        const p = canvasPoint(e);
+        const x = Math.min(start.x, p.x);
+        const y = Math.min(start.y, p.y);
+        const w = Math.abs(p.x - start.x);
+        const h = Math.abs(p.y - start.y);
+        ctx.putImageData(snapshot, 0, 0);
+        // Below this size, treat it as an accidental tap and discard rather than
+        // stamping a redaction box no one intended.
+        if (w >= 8 && h >= 8) {
+          ctx.fillStyle = "#000";
+          ctx.fillRect(x, y, w, h);
+        }
+      }
+      redactSnapshot.current = null;
+      redactStart.current = null;
+      return;
+    }
     drawing.current = false;
   }
   function clearDrawing() {
@@ -382,6 +443,7 @@ export function FeedbackWidget({
                 {shot ? (
                   <div className="space-y-1.5">
                     <p className="text-xs text-muted">Screenshot attached.</p>
+                    <p className="text-xs text-muted">{redactionDisclaimer}</p>
                     <button
                       type="button"
                       onClick={openAnnotator}
@@ -445,8 +507,8 @@ export function FeedbackWidget({
         )}
       </div>
 
-      {/* Full-screen screenshot annotator. Bigger canvas + a Draw/Scroll toggle so
-          tall screenshots can be scrolled on touch without drawing stray lines. */}
+      {/* Full-screen screenshot annotator: Draw / Redact / Scroll toggle so tall
+          screenshots can be scrolled on touch, marked up, or redacted before sending. */}
       {annotating && shot ? (
         <div
           data-feedback-widget
@@ -456,18 +518,27 @@ export function FeedbackWidget({
             <div className="flex rounded-md border border-white/30 text-xs">
               <button
                 type="button"
-                onClick={() => setDrawMode(true)}
+                onClick={() => setMode("draw")}
                 className={`rounded-l-md px-3 py-1.5 font-medium ${
-                  drawMode ? "bg-white text-black" : "text-white/80"
+                  mode === "draw" ? "bg-white text-black" : "text-white/80"
                 }`}
               >
                 ✏️ Draw
               </button>
               <button
                 type="button"
-                onClick={() => setDrawMode(false)}
+                onClick={() => setMode("redact")}
+                className={`px-3 py-1.5 font-medium ${
+                  mode === "redact" ? "bg-white text-black" : "text-white/80"
+                }`}
+              >
+                ⬛ Redact
+              </button>
+              <button
+                type="button"
+                onClick={() => setMode("scroll")}
                 className={`rounded-r-md px-3 py-1.5 font-medium ${
-                  !drawMode ? "bg-white text-black" : "text-white/80"
+                  mode === "scroll" ? "bg-white text-black" : "text-white/80"
                 }`}
               >
                 ✋ Scroll
@@ -477,6 +548,7 @@ export function FeedbackWidget({
               <button
                 type="button"
                 onClick={clearDrawing}
+                title="Clears all drawing and redaction marks"
                 className="text-white/80 hover:text-white"
               >
                 Clear
@@ -490,11 +562,14 @@ export function FeedbackWidget({
               </button>
             </div>
           </div>
-          <p className="px-3 pb-2 text-center text-xs text-white/70">
-            {drawMode
-              ? "Drag to draw. Switch to Scroll to move a tall screenshot."
-              : "Scroll to position. Switch to Draw to mark the problem."}
+          <p className="px-3 text-center text-xs text-white/70">
+            {mode === "draw"
+              ? "Drag to draw. Switch to Redact to black out sensitive info, or Scroll to move a tall screenshot."
+              : mode === "redact"
+                ? "Drag to black out sensitive info. Switch to Draw to mark the problem, or Scroll to move a tall screenshot."
+                : "Scroll to position. Switch to Draw or Redact to mark up the screenshot."}
           </p>
+          <p className="px-3 pb-2 text-center text-xs text-white/50">{redactionDisclaimer}</p>
           <div className="flex-1 overflow-auto p-3">
             <canvas
               ref={canvasRef}
@@ -502,7 +577,7 @@ export function FeedbackWidget({
               onPointerMove={onPointerMove}
               onPointerUp={onPointerUp}
               className={`mx-auto block h-auto w-full max-w-3xl rounded bg-white ${
-                drawMode ? "cursor-crosshair touch-none" : "cursor-default touch-pan-y"
+                mode === "scroll" ? "cursor-default touch-pan-y" : "cursor-crosshair touch-none"
               }`}
             />
           </div>

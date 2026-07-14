@@ -15,6 +15,7 @@ export function FeedbackWidget(props: {
     <Base
       categories={widgets.feedback.categories}
       severities={widgets.feedback.severities}
+      redactionDisclaimer={widgets.feedback.redactionDisclaimer}
       userEmail={props.userEmail}
       role={props.role}
       appVersion={props.appVersion}

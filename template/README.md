@@ -17,10 +17,13 @@ per-project glue the shared `site-widgets` package deliberately does not include
    Supabase server client and session helper. Make sure the client targets the
    right schema (via `db.schema` in `createClient`, or `.schema("<schema>")`).
    Extend `getOnboardingState` with project-specific auto-detects where marked.
+   In `feedback.actions.ts`, set `APP_NAME` to this project's name and, if you
+   want urgent routing (see below), set `N8N_FEEDBACK_WEBHOOK_URL` in your env.
 
 3. **Config.** Put `widgets.config.ts` at `src/config/widgets.ts`. Edit
-   categories, severities, and the per-role onboarding tasks. Each task `key`
-   must be stable; an `autoKey` ties a task to an auto-detect you added in step 2.
+   categories, severities, `redactionDisclaimer`, and the per-role onboarding
+   tasks. Each task `key` must be stable; an `autoKey` ties a task to an
+   auto-detect you added in step 2.
 
 4. **Bindings.** Put `FeedbackWidget.binding.tsx` and
    `OnboardingWidget.binding.tsx` next to your actions (rename to
@@ -71,3 +74,15 @@ order by created_at desc;
 ```
 Screenshots are base64 data URLs in `screenshot`. Mark handled with
 `update <schema>.site_feedback set status = 'done' where id = '...';`.
+
+## Urgent routing
+
+A submission with severity `blocker` fires a POST to `N8N_FEEDBACK_WEBHOOK_URL`
+right after it's saved, so you don't have to wait for your normal triage pass
+to notice it. Off by default - nothing fires until you set the env var.
+
+Only metadata leaves your project: `type`, `app` (your `APP_NAME`), `title`
+(built only from `app`/`kind`/`severity`, never from the report's free-text
+`message`), `severity`, `pageUrl`, `createdAt`. No `message`, `screenshot`,
+`email`, or `context` is ever sent - the report's actual content stays in your
+own database. A webhook failure never affects what the submitter sees.

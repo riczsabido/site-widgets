@@ -11,6 +11,35 @@ import type { FeedbackPayload, FeedbackResult } from "site-widgets";
 const KINDS = ["bug", "change", "other"]; // keep in sync with config categories
 const SEVERITIES = ["blocker", "normal", "minor"]; // keep in sync with config severities
 
+const APP_NAME = "myapp"; // set once per project; identifies this site in urgent pings
+const URGENT_WEBHOOK_URL = process.env.N8N_FEEDBACK_WEBHOOK_URL; // unset = feature off
+
+/**
+ * Best-effort ping for urgent (severity=blocker) reports only. Never carries
+ * message/screenshot/email/context - just enough to know something needs
+ * attention now, without pulling client-site content into this webhook.
+ */
+async function notifyUrgent(kind: string, severity: string, pageUrl: string | null) {
+  if (!URGENT_WEBHOOK_URL) return;
+  try {
+    await fetch(URGENT_WEBHOOK_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        type: "feedback.urgent",
+        app: APP_NAME,
+        title: `[${APP_NAME}] ${kind} - ${severity}`,
+        severity,
+        pageUrl,
+        createdAt: new Date().toISOString(),
+      }),
+      signal: AbortSignal.timeout(3000),
+    });
+  } catch {
+    // Fire-and-forget: a webhook failure must never affect the submitter's result.
+  }
+}
+
 /** Save a user's feedback. Anyone signed in may submit; only admins read (RLS). */
 export async function submitFeedback(
   input: FeedbackPayload,
@@ -37,5 +66,6 @@ export async function submitFeedback(
     context: input.context ?? null,
   });
   if (error) return { ok: false, error: error.message };
+  if (severity === "blocker") await notifyUrgent(kind, severity, input.pageUrl);
   return { ok: true };
 }

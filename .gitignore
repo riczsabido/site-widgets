@@ -1,3 +1,9 @@
 node_modules/
 *.log
 .DS_Store
+
+# Internal cross-project tracking - this repo is public; these carry business/
+# strategy content that must never be committed here.
+LOG.md
+PENDING.md
+*.tgz

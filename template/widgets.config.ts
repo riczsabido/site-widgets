@@ -16,11 +16,17 @@ export const widgets = {
       { key: "change", label: "Change request" },
       { key: "other", label: "Other" },
     ] as FeedbackOption[],
+    // "blocker" also triggers the urgent webhook in feedback.actions.ts - keep
+    // the key in sync if you rename it there.
     severities: [
       { key: "blocker", label: "Blocker (cannot proceed)" },
       { key: "normal", label: "Normal" },
       { key: "minor", label: "Minor / cosmetic" },
     ] as FeedbackOption[],
+    // Shown near the screenshot and in the annotator. Override with your own
+    // legal wording; the package ships a generic default if you omit this.
+    redactionDisclaimer:
+      "Please black out any sensitive information before sending. We are not liable for anything not redacted.",
   },
 
   onboarding: {

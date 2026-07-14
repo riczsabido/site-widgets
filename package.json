@@ -1,6 +1,6 @@
 {
   "name": "site-widgets",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Reusable, prop-driven feedback + onboarding widgets for Next.js apps. Bring your own server actions and database schema.",
   "type": "module",
   "exports": {
